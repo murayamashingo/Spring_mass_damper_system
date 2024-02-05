@@ -1,0 +1,75 @@
+% ばねマスダンパ系にアクチュエータを加えたシミュレーション
+clear;
+clc;
+close all;
+
+% パラメータ設定
+m1 = 1;      % 質点の質量 [kg]
+k1 = 10;     % ばね定数 [N/m]
+c1 = 1;    % ダンパ定数 [N/(m/s)]
+m2 = 1;      % 質点の質量 [kg]
+k2 = 10;     % ばね定数 [N/m]
+c2 = 1;    % ダンパ定数 [N/(m/s)]
+
+%　制御ゲイン設定
+Kp = -43;
+Ki = 1.36;
+Kd = 0.18;
+
+% 初期条件
+x0 = 1;     % 初期変位 [m]
+v0 = 0;     % 初期速度 [m/s]
+
+% 目標行列
+r = [0 0]';
+
+% シミュレーション時間
+Tf = 15;
+dt = 0.01;   % 0から5秒まで0.01秒刻みでシミュレーション
+
+% シミュレーション条件
+control_on = false;
+
+
+% 状態空間表現
+A = [0 1 0 0; -(k1+k2)/m1 -(c1+c2)/m1 k2/m1 c2/m1;0 0 0 1;k2/m2 c2/m2 -k2/m2 -c2/m2];
+B = [0 0;1/m1 0;0 0;];
+C = [1 0 0 0;0 1 0 0];
+D = [0;0];
+sys = ss(A,B,C,D);
+
+
+%% check if system is controllable / observable
+%対角正準形
+[csys,T] = canon(sys,'modal');
+csys
+
+%可制御性行列
+Co = ctrb(A,B);
+Unco = length(A)-rank(Co)%ここが0になったら可制御
+
+%可観測性行列
+Ob = obsv(A,C);
+Unob = length(A)-rank(Ob)%ここが0になったら可観測
+
+%% Get LQR Gain
+Q = diag([10 10 10 10]);
+R = 0.1;
+% K = lqr(A,B,Q,R);%状態フィードバックゲイン取得
+P = care(A,B,Q,R);%リカッチ方程式を解くことで行列Ｐを導出
+K = inv(R)*B'*P;%状態FBゲイン導出
+
+%% Simulation Conditions
+Init_angle = 15; %Poleの初期角度
+x0 = [0 Init_angle*pi/180 0 0];
+controllable = true; %制御かけるかどうか
+disturbance_on = true; %外乱かけるかどうか
+Tf = 10; %シミュレーション時間
+control_period = 1e-3; %制御周期
+Umax = 5; %アクチュエータの最大出力
+
+% 運動方程式の数値解法
+sim("PID_spring_2mass_damper_system.slx");
+
+%結果のプロット
+run("plot_2mass.m")
